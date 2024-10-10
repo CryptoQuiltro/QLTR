@@ -1,0 +1,50 @@
+pragma solidity >=0.6.0 <0.9.0;
+
+import '@openzeppelin/contracts/token/ERC20/ERC20.sol';
+
+contract Quiltro is ERC20 {
+    address public owner;
+    uint256 public burningRate;
+    uint256 public mintRate;
+    
+    modifier onlyOwner {
+        require(msg.sender == owner, "Only owner can call this function.");
+        _;
+    }
+    
+    constructor() ERC20("Quiltro", "QLTR") {
+        owner = msg.sender;
+        _mint(msg.sender, 21000000000); // Example initial supply for IDO
+    }
+    
+    function allocateTokens(address recipient, uint256 amount) public onlyOwner {
+        _mint(recipient, amount);
+    }
+
+    function setBurningRate(uint256 rate) public onlyOwner {
+        burningRate = rate;
+    }
+    
+    function setMintRate(uint256 rate) public onlyOwner {
+        mintRate = rate;
+    }
+    
+    function burnTokens(uint256 amount) public {
+        _burn(msg.sender, amount);
+    }
+    
+    function mintTokens(address account, uint256 amount) public onlyOwner {
+        _mint(account, amount);
+    }
+    
+    function setOwner(address newOwner) public onlyOwner {
+        owner = newOwner;
+    }
+    
+    function burnTransactionFee() public onlyOwner {
+        uint256 burnAmount = address(this).balance * burningRate / 100;
+        _burn(address(this), burnAmount);
+    }
+    
+    function mintNewTokens() public onlyOwner {
+        uint256 mintAmount = address(this).balance * mintRate / 100;
