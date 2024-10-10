@@ -1,0 +1,68 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract QuiltroPetNFT is ERC721URIStorage, Ownable {
+    uint256 public nextTokenId;  // Tracks the next available NFT ID
+    mapping(uint256 => PetProfile) public petProfiles;  // Stores pet profile data
+
+    // Pet profile structure
+    struct PetProfile {
+        string name;
+        string rescueLocation;
+        string status;  // E.g., Rescued, Fostered, Adopted
+        uint256 rescueDate;
+        string metadataURI;  // URI for pet’s metadata (e.g., image, description)
+    }
+
+    // Event to log the minting of a new NFT
+    event PetMinted(address indexed rescuer, uint256 tokenId, string name, string rescueLocation);
+
+    constructor() ERC721("QuiltroPet", "QLTPET") {}
+
+    // Mint a new pet NFT
+    function mintPetNFT(
+        address rescuer,
+        string memory name,
+        string memory rescueLocation,
+        string memory metadataURI
+    ) external onlyOwner {
+        uint256 tokenId = nextTokenId;
+        nextTokenId++;
+
+        // Create and store pet profile data
+        petProfiles[tokenId] = PetProfile({
+            name: name,
+            rescueLocation: rescueLocation,
+            status: "Rescued",
+            rescueDate: block.timestamp,
+            metadataURI: metadataURI
+        });
+
+        // Mint the NFT and assign it to the rescuer
+        _mint(rescuer, tokenId);
+        _setTokenURI(tokenId, metadataURI);  // Assign the metadata URI to the NFT
+
+        emit PetMinted(rescuer, tokenId, name, rescueLocation);
+    }
+
+    // Update pet status (e.g., from Rescued to Fostered or Adopted)
+    function updatePetStatus(uint256 tokenId, string memory newStatus) external onlyOwner {
+        require(_exists(tokenId), "Pet NFT does not exist");
+        petProfiles[tokenId].status = newStatus;
+    }
+
+    // Transfer pet NFT ownership to adopter or foster parent
+    function transferPet(address to, uint256 tokenId) external {
+        require(ownerOf(tokenId) == msg.sender, "You are not the owner of this NFT");
+        _transfer(msg.sender, to, tokenId);
+    }
+
+    // View pet profile data
+    function getPetProfile(uint256 tokenId) external view returns (PetProfile memory) {
+        require(_exists(tokenId), "Pet NFT does not exist");
+        return petProfiles[tokenId];
+    }
+}
