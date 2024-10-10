@@ -1,4 +1,4 @@
-# QLTR
+# $QLTR
 # Quiltro Project
 
 Quiltro is a blockchain-based platform dedicated to rescuing and finding homes for stray pets. By leveraging the power of NFTs and $QLTR tokens, Quiltro incentivizes pet adoption and care, while creating a thriving community of animal lovers.
