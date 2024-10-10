@@ -1,50 +1,46 @@
-pragma solidity >=0.6.0 <0.9.0;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
 
-import '@openzeppelin/contracts/token/ERC20/ERC20.sol';
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract Quiltro is ERC20 {
-    address public owner;
-    uint256 public burningRate;
-    uint256 public mintRate;
-    
-    modifier onlyOwner {
-        require(msg.sender == owner, "Only owner can call this function.");
-        _;
-    }
-    
+contract QuiltroToken is ERC20, Ownable {
+    uint256 public burningRate;  // Percentage of transaction burned
+    uint256 public mintRate;     // Rate at which new tokens can be minted
+
     constructor() ERC20("Quiltro", "QLTR") {
-        owner = msg.sender;
-        _mint(msg.sender, 21000000000); // Example initial supply for IDO
-    }
-    
-    function allocateTokens(address recipient, uint256 amount) public onlyOwner {
-        _mint(recipient, amount);
+        _mint(msg.sender, 21000000000 * 10 ** decimals());  // Initial supply for the project
+        burningRate = 2;  // 2% of transactions burned
+        mintRate = 0;  // Initially set to 0, can be adjusted
     }
 
-    function setBurningRate(uint256 rate) public onlyOwner {
-        burningRate = rate;
+    // Mint new tokens - only the owner can call this
+    function mintTokens(address to, uint256 amount) external onlyOwner {
+        _mint(to, amount);
     }
-    
-    function setMintRate(uint256 rate) public onlyOwner {
-        mintRate = rate;
+
+    // Set mint rate - only the owner can adjust
+    function setMintRate(uint256 newRate) external onlyOwner {
+        mintRate = newRate;
     }
-    
-    function burnTokens(uint256 amount) public {
+
+    // Set burning rate - only the owner can adjust
+    function setBurningRate(uint256 newRate) external onlyOwner {
+        burningRate = newRate;
+    }
+
+    // Burn tokens from the caller's balance
+    function burnTokens(uint256 amount) external {
         _burn(msg.sender, amount);
     }
-    
-    function mintTokens(address account, uint256 amount) public onlyOwner {
-        _mint(account, amount);
+
+    // Internal transfer with burn mechanism applied
+    function _transfer(address sender, address recipient, uint256 amount) internal override {
+        uint256 burnAmount = (amount * burningRate) / 100;
+        uint256 sendAmount = amount - burnAmount;
+
+        super._burn(sender, burnAmount);  // Burn part of the amount
+        super._transfer(sender, recipient, sendAmount);  // Transfer the remaining tokens
     }
-    
-    function setOwner(address newOwner) public onlyOwner {
-        owner = newOwner;
-    }
-    
-    function burnTransactionFee() public onlyOwner {
-        uint256 burnAmount = address(this).balance * burningRate / 100;
-        _burn(address(this), burnAmount);
-    }
-    
-    function mintNewTokens() public onlyOwner {
-        uint256 mintAmount = address(this).balance * mintRate / 100;
+}
+
