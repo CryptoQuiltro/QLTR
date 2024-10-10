@@ -1,0 +1,93 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract QuiltroStaking is Ownable {
+    ERC20 public quiltroToken;
+    uint256 public rewardRate;  // Reward rate for staking
+    uint256 public lockPeriod = 30 days;  // Default lock period
+
+    struct Stake {
+        uint256 amount;
+        uint256 startTime;
+    }
+
+    mapping(address => Stake) public stakes;
+    mapping(address => uint256) public rewards;
+
+    event Staked(address indexed user, uint256 amount);
+    event Unstaked(address indexed user, uint256 amount);
+    event RewardClaimed(address indexed user, uint256 reward);
+
+    constructor(ERC20 _quiltroToken) {
+        quiltroToken = _quiltroToken;
+        rewardRate = 10;  // 10% reward annually
+    }
+
+    // Stake function: users stake $QLTR tokens
+    function stake(uint256 _amount) external {
+        require(_amount > 0, "Cannot stake zero tokens");
+        require(quiltroToken.balanceOf(msg.sender) >= _amount, "Not enough tokens");
+
+        // Transfer tokens to this contract for staking
+        quiltroToken.transferFrom(msg.sender, address(this), _amount);
+
+        // Add to existing stake if the user already has one
+        stakes[msg.sender].amount += _amount;
+        stakes[msg.sender].startTime = block.timestamp;
+
+        emit Staked(msg.sender, _amount);
+    }
+
+    // Unstake function: allows user to withdraw tokens after the lock period
+    function unstake() external {
+        require(block.timestamp >= stakes[msg.sender].startTime + lockPeriod, "Lock period not finished");
+
+        uint256 amount = stakes[msg.sender].amount;
+        require(amount > 0, "No tokens to unstake");
+
+        // Reset the stake amount
+        stakes[msg.sender].amount = 0;
+
+        // Transfer tokens back to the user
+        quiltroToken.transfer(msg.sender, amount);
+
+        // Calculate rewards
+        uint256 reward = calculateReward(msg.sender);
+        rewards[msg.sender] += reward;
+
+        emit Unstaked(msg.sender, amount);
+    }
+
+    // Claim reward function: allows user to claim staking rewards
+    function claimReward() external {
+        uint256 reward = rewards[msg.sender];
+        require(reward > 0, "No rewards to claim");
+
+        rewards[msg.sender] = 0;
+
+        quiltroToken.transfer(msg.sender, reward);
+        emit RewardClaimed(msg.sender, reward);
+    }
+
+    // Calculate rewards based on staked amount and duration
+    function calculateReward(address _user) public view returns (uint256) {
+        uint256 stakedTime = block.timestamp - stakes[_user].startTime;
+        uint256 stakedAmount = stakes[_user].amount;
+
+        // Simple reward formula: stakedAmount * rewardRate * time/lockPeriod
+        return (stakedAmount * rewardRate * stakedTime) / (lockPeriod * 100);
+    }
+
+    // Set reward rate (only owner can set this)
+    function setRewardRate(uint256 _rate) external onlyOwner {
+        rewardRate = _rate;
+    }
+
+    // Set lock period (only owner can adjust)
+    function setLockPeriod(uint256 _period) external onlyOwner {
+        lockPeriod = _period;
+    }
+}
