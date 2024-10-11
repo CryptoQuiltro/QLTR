@@ -1,0 +1,86 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract QuiltroDonation is Ownable {
+    IERC20 public quiltroToken;  // Interface for $QLTR token
+    uint256 public operationsFee;  // Fee percentage for operations (e.g., 10%)
+
+    // Struct to track donations to specific pets
+    struct Donation {
+        address donor;
+        uint256 amount;
+        uint256 timestamp;
+    }
+
+    // Mapping from pet NFT ID to an array of donations
+    mapping(uint256 => Donation[]) public petDonations;
+
+    // Event to log donations
+    event DonationMade(address indexed donor, uint256 indexed petId, uint256 amount, uint256 fee);
+
+    constructor(IERC20 _quiltroToken) {
+        quiltroToken = _quiltroToken;
+        operationsFee = 10;  // 10% fee for platform operations
+    }
+
+    // Donate to a specific pet by providing its NFT ID
+    function donateToPet(uint256 petId, uint256 amount) external {
+        require(amount > 0, "Donation amount must be greater than zero");
+        require(quiltroToken.balanceOf(msg.sender) >= amount, "Insufficient balance to donate");
+
+        // Calculate the operations fee
+        uint256 fee = (amount * operationsFee) / 100;
+        uint256 donationAmount = amount - fee;
+
+        // Transfer the donation (minus fee) to the smart contract
+        quiltroToken.transferFrom(msg.sender, address(this), amount);
+
+        // Log the donation
+        petDonations[petId].push(Donation({
+            donor: msg.sender,
+            amount: donationAmount,
+            timestamp: block.timestamp
+        }));
+
+        // Emit event for the donation
+        emit DonationMade(msg.sender, petId, donationAmount, fee);
+    }
+
+    // Withdraw funds for a specific pet (e.g., by the owner or foster parent)
+    function withdrawFunds(uint256 petId, uint256 amount, address payable recipient) external onlyOwner {
+        require(petDonations[petId].length > 0, "No donations found for this pet");
+
+        // Ensure the requested amount doesn't exceed available donations
+        uint256 totalDonations = 0;
+        for (uint256 i = 0; i < petDonations[petId].length; i++) {
+            totalDonations += petDonations[petId][i].amount;
+        }
+        require(totalDonations >= amount, "Not enough donations for withdrawal");
+
+        // Transfer the funds to the recipient
+        quiltroToken.transfer(recipient, amount);
+    }
+
+    // Set the operations fee percentage (only owner can change this)
+    function setOperationsFee(uint256 newFee) external onlyOwner {
+        require(newFee <= 20, "Operations fee must be 20% or less");
+        operationsFee = newFee;
+    }
+
+    // Retrieve the total donations for a pet
+    function getTotalDonations(uint256 petId) external view returns (uint256) {
+        uint256 totalDonations = 0;
+        for (uint256 i = 0; i < petDonations[petId].length; i++) {
+            totalDonations += petDonations[petId][i].amount;
+        }
+        return totalDonations;
+    }
+
+    // Retrieve donation history for a specific pet
+    function getDonationHistory(uint256 petId) external view returns (Donation[] memory) {
+        return petDonations[petId];
+    }
+}
